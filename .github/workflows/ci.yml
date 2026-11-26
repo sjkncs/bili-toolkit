@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install httpx pillow python-docx
+
+      - name: Byte-compile every script
+        run: |
+          python -m compileall -q .
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: paths.py resolves without config
+        run: |
+          python -c "import paths; print('HOME', paths.HOME); print('VAULT', paths.VAULT_DIR); print('MODEL', paths.WHISPER_MODEL)"
+
+      - name: check_links on a temp vault (expect 0 broken)
+        run: |
+          python -c "import os, pathlib; v=pathlib.Path('tmpvault'); (v/'a').mkdir(parents=True, exist_ok=True); (v/'a'/'n1.md').write_text('# n1\n\n[[n2]]\n', encoding='utf-8'); (v/'a'/'n2.md').write_text('# n2\n\n[[n1]]\n', encoding='utf-8')"
+          python check_links.py tmpvault
